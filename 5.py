@@ -928,36 +928,46 @@ async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, 
         results = await search_market_items(session, query, facets, limit=max_items, logger=logger)
         items = [r["english"] for r in results]
         logger.info(f"Found {len(items)} items after updating all items")
+    
     tasks = []
     selected = []
     target_num = num_items if num_items is not None else max_items
+    
     for it in items:
+        if len(selected) >= target_num:  # Прерываем, если уже нашли нужное количество
+            logger.info(f"Reached target number of items ({target_num}), stopping processing")
+            break
+            
         async with semaphore:
             tasks.append(process_item(session, it, logger))
-        if len(tasks) >= MAX_CONCURRENCY:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for r in results:
-                if not r or isinstance(r, Exception):
-                    if isinstance(r, Exception):
-                        logger.error(f"Error processing item: {r}")
-                    continue
-                an = r.get("analysis", {})
-                volatility = an.get("volatility", 0)
-                volume_growth = an.get("volume_growth", 0)
-                logger.info(f"Item {r['item']}: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
-                if volatility >= vol_threshold and volume_growth >= vol_growth_threshold:
-                    selected.append(r)
-                    logger.info(f"Item {r['item']} selected: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
-                else:
-                    logger.info(f"Item {r['item']} skipped: volatility={volatility:.2f}% < {vol_threshold}% or volume_growth={volume_growth:.2f}% < {vol_growth_threshold}%")
-                if len(selected) >= target_num:
-                    break
-            tasks = []
-            if len(selected) >= target_num:
-                break
+            if len(tasks) >= MAX_CONCURRENCY:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for r in results:
+                    if not r or isinstance(r, Exception):
+                        if isinstance(r, Exception):
+                            logger.error(f"Error processing item: {r}")
+                        continue
+                    an = r.get("analysis", {})
+                    volatility = an.get("volatility", 0)
+                    volume_growth = an.get("volume_growth", 0)
+                    logger.info(f"Item {r['item']}: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
+                    if volatility >= vol_threshold and volume_growth >= vol_growth_threshold and volume_growth > 0:
+                        selected.append(r)
+                        logger.info(f"Item {r['item']} selected: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
+                        if len(selected) >= target_num:  # Прерываем, если нашли достаточно
+                            logger.info(f"Reached target number of items ({target_num}) in processing")
+                            break
+                    else:
+                        logger.info(f"Item {r['item']} skipped: does not meet criteria (volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%)")
+                tasks = []
+    
+    # Обработка оставшихся задач, если они есть
     if tasks and len(selected) < target_num:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for r in results:
+            if len(selected) >= target_num:  # Прерываем, если нашли достаточно
+                logger.info(f"Reached target number of items ({target_num}) in final processing")
+                break
             if not r or isinstance(r, Exception):
                 if isinstance(r, Exception):
                     logger.error(f"Error processing item: {r}")
@@ -966,16 +976,18 @@ async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, 
             volatility = an.get("volatility", 0)
             volume_growth = an.get("volume_growth", 0)
             logger.info(f"Item {r['item']}: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
-            if volatility >= vol_threshold and volume_growth >= vol_growth_threshold:
+            if volatility >= vol_threshold and volume_growth >= vol_growth_threshold and volume_growth > 0:
                 selected.append(r)
                 logger.info(f"Item {r['item']} selected: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
             else:
-                logger.info(f"Item {r['item']} skipped: volatility={volatility:.2f}% < {vol_threshold}% or volume_growth={volume_growth:.2f}% < {vol_growth_threshold}%")
-            if len(selected) >= target_num:
-                break
+                logger.info(f"Item {r['item']} skipped: does not meet criteria (volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%)")
+    
+    # Сортировка по volume_growth (на случай, если набралось больше, чем нужно)
     selected.sort(key=lambda x: x.get("analysis", {}).get("volume_growth", 0), reverse=True)
+    selected = selected[:target_num]  # Ограничиваем до target_num, если вдруг набралось больше
     logger.info(f"Selected {len(selected)} items (volatility >= {vol_threshold}%, volume_growth >= {vol_growth_threshold}%)")
     return selected
+
 async def daily_scheduler_loop():
     while True:
         try:
@@ -1228,7 +1240,7 @@ async def get_breadcrumbs(state: FSMContext):
 async def perform_scan(chat_id: int, state: FSMContext, bot: Bot):
     data = await state.get_data()
     query = data.get('keywords', "")
-    num_items = data.get('num_items', 10)  # Default to 10 if not specified
+    num_items = data.get('num_items', 100)  # Получаем num_items из состояния
     facets = {
         "type": data.get("type"),
         "subcategory": data.get("subcategory"),
@@ -1238,34 +1250,35 @@ async def perform_scan(chat_id: int, state: FSMContext, bot: Bot):
         "quality": data.get("quality"),
     }
     facets = {k: v for k, v in facets.items() if v and v != 'skip'}
-    await bot.send_message(chat_id, f"🔄 Сканирую рынок по выбранным фильтрам. Ищу {num_items} предметов...")
+    await bot.send_message(chat_id, f"🔄 Сканирую рынок по выбранным фильтрам. Ищу до {num_items} подходящих предметов...")
     try:
         async with aiohttp.ClientSession() as session:
             vol_threshold, vol_growth_threshold, _ = get_settings()
             selected = await scan_and_select(
                 session,
                 query=query,
-                max_items=1000,  # Increased to ensure enough items are scanned
+                max_items=5000,
                 vol_threshold=vol_threshold,
                 vol_growth_threshold=vol_growth_threshold,
                 logger=logger,
-                num_items=num_items,
+                num_items=num_items,  # Передаём num_items
                 **facets
             )
             if not selected:
                 await bot.send_message(chat_id, "❌ Ничего не найдено по критериям.")
                 await state.clear()
                 return
-            publish_count = min(len(selected), num_items)
-            for r in selected[:publish_count]:
+            # Ограничиваем количество отправляемых предметов
+            for r in selected[:num_items]:
                 await publish_item(session, chat_id, r, logger, with_publish_button=True)
                 await asyncio.sleep(1)
-            await bot.send_message(chat_id, f"✅ Готово! Отправлено {publish_count} предметов из {len(selected)} найденных. Выберите, что опубликовать в канал.")
+            await bot.send_message(chat_id, f"✅ Готово! Отправлено {min(len(selected), num_items)} предметов из {len(selected)} найденных. Выберите, что опубликовать в канал.")
     except Exception as e:
         logger.error(f"Scan error: {e}")
         await bot.send_message(chat_id, f"❌ Ошибка: {e}")
     finally:
         await state.clear()
+
 async def next_level(callback: types.CallbackQuery, state: FSMContext, next_state: State, next_filter: str):
     try:
         breadcrumbs = await get_breadcrumbs(state)
