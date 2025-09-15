@@ -1,5 +1,3 @@
-# Этот файл содержит FACETS для фильтров и функцию построения клавиатур.
-
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
@@ -224,6 +222,7 @@ def build_filter_keyboard(options_dict, prefix, current_page=0, page_size=9, add
         label = options_dict[key]
         kb.button(text=label, callback_data=f"{prefix}_{key}")
     
+    # Pagination buttons
     if total_pages > 1:
         nav_row = []
         if current_page > 0:
