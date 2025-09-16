@@ -26,9 +26,13 @@ from aiogram.client.default import DefaultBotProperties
 from aiohttp import TCPConnector
 import urllib.parse
 import pytz
-from filters import FACETS, build_filter_keyboard  # Updated import with full FACETS
+from filters import FACETS, build_filter_keyboard, type_to_cat
+
 load_dotenv()
+
 # ---------- КОНФИГУРАЦИЯ ----------
+load_dotenv()
+
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8427688497:AAGkBisiTfJM3RDc8DOG9Kx9l9EnekoFGQk")
 STEAM_COOKIE_STR = os.getenv("STEAM_COOKIE", "76561198375596395%7C%7CeyAidHlwIjogIkpXVCIsICJhbGciOiAiRWREU0EiIH0.eyAiaXNzIjogInI6MDAxOF8yNkVDRjJBNV9EQkNDQSIsICJzdWIiOiAiNzY1NjExOTgzNzU1OTYzOTUiLCAiYXVkIjogWyAid2ViOmNvbW11bml0eSIgXSwgImV4cCI6IDE3NTc5NDYxNzYsICJuYmYiOiAxNzQ5MjE5MzkxLCAiaWF0IjogMTc1Nzg1OTM5MSwgImp0aSI6ICIwMDEyXzI2RUNGMkI5XzhEQTg1IiwgIm9hdCI6IDE3NTc3NzMyMTcsICJydF9leHAiOiAxNzcyMDgxNzEzLCAicGVyIjogMCwgImlwX3N1YmplY3QiOiAiMjE3LjExOC4xODQuMjQ0IiwgImlwX2NvbmZpcm1lciI6ICIxOTUuMjExLjI0LjI0MyIgfQ.lq4eB-FDDTEOLfUWZgjTxtVEZu24ECzQiOMI9nNzLRib-AeoLY4K6WuoGwrR_qktvRcE51bCrxzxRBZ4K_qiBQ")
 STEAM_COOKIES = [c.strip() for c in STEAM_COOKIE_STR.split(';') if c.strip()]
@@ -46,7 +50,8 @@ CACHE_TTL = int(os.getenv("CACHE_TTL", "3600"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "5"))
 RETRY_429_DELAY = int(os.getenv("RETRY_429_DELAY", "60"))
 POST_DELAY = int(os.getenv("POST_DELAY", "3600"))
-HISTORY_DAYS = int(os.getenv("HISTORY_DAYS", "7")) # Limit history to 7 days
+HISTORY_DAYS = int(os.getenv("HISTORY_DAYS", "7"))
+
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -56,17 +61,21 @@ def setup_logging():
             logging.StreamHandler()
         ]
     )
+
 setup_logging()
 logger = logging.getLogger("steam_screener")
+
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
 _cache = {}
+
 # ---------- БД ----------
 DB_FILE = "steam_screener.db"
 conn = sqlite3.connect(DB_FILE, check_same_thread=False)
 cursor = conn.cursor()
+
 def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS settings (
@@ -96,6 +105,7 @@ def init_db():
     )
     ''')
     conn.commit()
+
 def get_settings(user_id=None):
     if user_id:
         cursor.execute("SELECT volatility, volume_growth, schedule_time FROM settings WHERE user_id=?", (user_id,))
@@ -103,26 +113,31 @@ def get_settings(user_id=None):
         cursor.execute("SELECT volatility, volume_growth, schedule_time FROM settings LIMIT 1")
     row = cursor.fetchone()
     return row if row else (20.0, 50.0, '09:00')
+
 def set_settings(user_id, vol, volgr, schedule_time=None):
     if schedule_time:
         cursor.execute("INSERT OR REPLACE INTO settings (user_id, volatility, volume_growth, schedule_time) VALUES (?, ?, ?, ?)", (user_id, vol, volgr, schedule_time))
     else:
         cursor.execute("INSERT OR REPLACE INTO settings (user_id, volatility, volume_growth) VALUES (?, ?, ?)", (user_id, vol, volgr))
     conn.commit()
+
 def save_item(item_name, russian_name, english_hash, category, subcategory):
     cursor.execute("INSERT OR REPLACE INTO items (item_name, russian_name, english_hash, category, subcategory, last_update) VALUES (?, ?, ?, ?, ?, ?)",
                    (item_name, russian_name, english_hash, category, subcategory, int(time())))
     conn.commit()
+
 def save_price_history(item_name, timestamp, price, volume):
     cursor.execute("INSERT OR IGNORE INTO price_history (item_name, timestamp, price, volume) VALUES (?, ?, ?, ?)",
                    (item_name, timestamp, price, volume))
     conn.commit()
+
 # ---------- FSM ----------
 class CheckState(StatesGroup):
     waiting_for_query = State()
     selecting_variant = State()
+
 class ScanState(StatesGroup):
-    selecting_num_items = State()  # New state for number of items
+    selecting_num_items = State()
     selecting_type = State()
     selecting_subcategory = State()
     selecting_exterior = State()
@@ -130,9 +145,11 @@ class ScanState(StatesGroup):
     selecting_rarity = State()
     selecting_quality = State()
     selecting_keywords = State()
+
 # ---------- ХЕЛПЕРЫ ----------
 def html_escape(s: str) -> str:
     return html.escape(s)
+
 def cache_get(key):
     entry = _cache.get(key)
     if not entry:
@@ -142,10 +159,13 @@ def cache_get(key):
         del _cache[key]
         return None
     return data
+
 def cache_set(key, data):
     _cache[key] = (data, time())
+
 cookie_index = 0
 proxy_index = 0
+
 def get_next_cookie():
     global cookie_index
     if not STEAM_COOKIES:
@@ -153,6 +173,7 @@ def get_next_cookie():
     cookie = STEAM_COOKIES[cookie_index]
     cookie_index = (cookie_index + 1) % len(STEAM_COOKIES)
     return f"steamLoginSecure={cookie}; steamCountry=RU; steamLanguage=russian"
+
 def get_next_proxy():
     global proxy_index
     if not PROXIES:
@@ -160,9 +181,11 @@ def get_next_proxy():
     proxy = PROXIES[proxy_index]
     proxy_index = (proxy_index + 1) % len(PROXIES)
     return proxy
+
 async def get_session(proxy=None):
     connector = TCPConnector(ssl=False) if proxy else None
     return aiohttp.ClientSession(connector=connector)
+
 async def safe_get(session, url, params=None, headers=None, proxy=None, retries=3, timeout=30, logger=logger):
     headers = headers or {}
     headers.setdefault("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
@@ -195,6 +218,7 @@ async def safe_get(session, url, params=None, headers=None, proxy=None, retries=
         await asyncio.sleep(REQUEST_DELAY * attempt)
     logger.error(f"Request failed after {retries} attempts | URL={url}")
     return None
+
 async def find_english_hash_name(session, query, logger=logger):
     if not re.search(r'[а-яА-Я]', query):
         return query
@@ -224,6 +248,7 @@ async def find_english_hash_name(session, query, logger=logger):
                     pass
     logger.warning(f"No results found for {query} after 3 attempts")
     return None
+
 async def search_market_items(session, query, facets=None, limit=1000, logger=logger):
     cache_key = f"search_{query}_{json.dumps(facets, sort_keys=True)}_{limit}"
     cached = cache_get(cache_key)
@@ -245,7 +270,19 @@ async def search_market_items(session, query, facets=None, limit=1000, logger=lo
                 "appid": APP_ID,
                 "l": "russian"
             }
-            valid_facets = {k: v for k, v in facets.items() if v and v != 'skip' and v in FACETS.get(k, {})}
+            valid_facets = {}
+            for k, v in facets.items():
+                if not v or v == 'skip':
+                    continue
+                facet_options = FACETS.get(k)
+                if isinstance(facet_options, dict):
+                    if k in ['subcategory', 'rarity']:
+                        found = any(v in subdict for subdict in facet_options.values() if isinstance(subdict, dict))
+                        if found:
+                            valid_facets[k] = v
+                    else:
+                        if v in facet_options:
+                            valid_facets[k] = v
             for key, value in valid_facets.items():
                 tag = f"tag_{value}"
                 if key == "type":
@@ -281,10 +318,13 @@ async def search_market_items(session, query, facets=None, limit=1000, logger=lo
                             hash_part = href.split('/listings/730/')[1].split('?')[0]
                             english = urllib.parse.unquote(hash_part)
                             cat = (
-                                'weapon' if '|' in english
-                                else 'sticker' if 'Sticker' in english
-                                else 'case' if 'Case' in english
-                                else 'other'
+                                'weapon' if '|' in english else
+                                'sticker' if 'Sticker' in english else
+                                'case' if 'Case' in english else
+                                'music' if 'Music Kit' in english else
+                                'agent' if any(f in english for f in ['The Professionals', 'Elite Crew', 'SWAT']) else
+                                'gloves' if 'Gloves' in english else
+                                'other'
                             )
                             sub = english.split('|')[0].strip() if '|' in english else ''
                             save_item(english, russian, english, cat, sub)
@@ -304,7 +344,7 @@ async def search_market_items(session, query, facets=None, limit=1000, logger=lo
             if rows:
                 logger.debug(f"Found {len(rows)} items in database for query: {query}")
                 results = [{"russian": row[0], "english": row[1]} for row in rows]
-                break  # Use DB results if available
+                break
             else:
                 url = "https://steamcommunity.com/market/search/render/"
                 params = {
@@ -335,10 +375,13 @@ async def search_market_items(session, query, facets=None, limit=1000, logger=lo
                                 hash_part = href.split('/listings/730/')[1].split('?')[0]
                                 english = urllib.parse.unquote(hash_part)
                                 cat = (
-                                    'weapon' if '|' in english
-                                    else 'sticker' if 'Sticker' in english
-                                    else 'case' if 'Case' in english
-                                    else 'other'
+                                    'weapon' if '|' in english else
+                                    'sticker' if 'Sticker' in english else
+                                    'case' if 'Case' in english else
+                                    'music' if 'Music Kit' in english else
+                                    'agent' if any(f in english for f in ['The Professionals', 'Elite Crew', 'SWAT']) else
+                                    'gloves' if 'Gloves' in english else
+                                    'other'
                                 )
                                 sub = english.split('|')[0].strip() if '|' in english else ''
                                 save_item(english, russian, english, cat, sub)
@@ -373,6 +416,7 @@ async def get_third_party_pricehistory(session, appid, market_hash_name, logger=
         return {"success": True, "prices": formatted_prices}
     logger.warning(f"SteamApis.com API failed for {market_hash_name}: {data}")
     return None
+
 async def get_priceoverview(session, appid, currency, market_hash_name, logger=logger):
     url = "https://steamcommunity.com/market/priceoverview/"
     params = {"appid": appid, "currency": currency, "market_hash_name": market_hash_name, "l": "russian"}
@@ -384,6 +428,7 @@ async def get_priceoverview(session, appid, currency, market_hash_name, logger=l
         return data
     logger.warning(f"Price overview failed for {market_hash_name}")
     return {}
+
 async def get_pricehistory(session, appid, market_hash_name, logger=logger):
     url = "https://steamcommunity.com/market/pricehistory/"
     proxy = get_next_proxy()
@@ -427,6 +472,7 @@ async def get_pricehistory(session, appid, market_hash_name, logger=logger):
             return third_party_data
     logger.error(f"Failed to fetch price history for {market_hash_name}")
     return None
+
 async def get_itemordershistogram(session, currency, item_nameid, logger=logger):
     if not item_nameid:
         logger.warning("No item_nameid provided for histogram")
@@ -441,6 +487,7 @@ async def get_itemordershistogram(session, currency, item_nameid, logger=logger)
         return data
     logger.warning(f"Histogram fetch failed for item_nameid={item_nameid}")
     return {}
+
 async def get_listing_page(session, appid, market_hash_name, logger=logger):
     url = f"https://steamcommunity.com/market/listings/{appid}/{urllib.parse.quote(market_hash_name)}"
     headers = {"Cookie": get_next_cookie()}
@@ -456,6 +503,7 @@ async def get_listing_page(session, appid, market_hash_name, logger=logger):
     except Exception as e:
         logger.warning(f"Failed to fetch listing page for {market_hash_name}: {e}")
         return ""
+
 async def get_nameid_and_russian_name(session, market_hash_name, logger=logger):
     try:
         listing_page = await get_listing_page(session, APP_ID, market_hash_name, logger)
@@ -514,12 +562,14 @@ async def get_nameid_and_russian_name(session, market_hash_name, logger=logger):
     except Exception as e:
         logger.warning(f"Error parsing listing page for {market_hash_name}: {e}")
         return None, market_hash_name, None
+
 def parse_price_string(s: str) -> float:
     if s is None:
         return 0.0
     s = str(s).replace('\xa0', '').replace('руб.', '').replace('RUB', '').replace(',', '.').strip()
     m = re.search(r'([0-9]*\.?[0-9]+)', s)
     return float(m.group(1)) if m else 0.0
+
 def df_from_pricehistory(prices_raw, logger=logger):
     rows = []
     logger.info(f"Processing price history with {len(prices_raw or [])} entries")
@@ -578,6 +628,7 @@ def df_from_pricehistory(prices_raw, logger=logger):
     df = pd.DataFrame(rows).sort_values("timestamp").reset_index(drop=True)
     logger.info(f"Created DataFrame with {len(df)} rows after filtering for last {HISTORY_DAYS} days")
     return df
+
 def analyze_dataframe(df: pd.DataFrame, current_median: float, current_volume: int, logger=logger):
     if df.empty or len(df) < 2:
         logger.warning("Empty or insufficient DataFrame for analysis")
@@ -617,6 +668,7 @@ def analyze_dataframe(df: pd.DataFrame, current_median: float, current_volume: i
         "publications": int(publications),
         "avg_price": round(avg_price, 2),
     }
+
 def plot_price_week(df: pd.DataFrame, title: str, logger=logger):
     logger.info(f"Plotting price week for {title}")
     if df.empty:
@@ -644,6 +696,7 @@ def plot_price_week(df: pd.DataFrame, title: str, logger=logger):
     buf.seek(0)
     logger.info(f"Price plot generated for {title}")
     return buf
+
 def plot_volume_week(df: pd.DataFrame, title: str, logger=logger):
     logger.info(f"Plotting volume week for {title}")
     if df.empty:
@@ -671,6 +724,7 @@ def plot_volume_week(df: pd.DataFrame, title: str, logger=logger):
     buf.seek(0)
     logger.info(f"Volume plot generated for {title}")
     return buf
+
 def plot_orders_histogram(histogram_json, title: str, image_url: str = None, logger=logger):
     logger.info(f"Plotting orders histogram for {title}")
     if not histogram_json or not isinstance(histogram_json, dict):
@@ -711,6 +765,7 @@ def plot_orders_histogram(histogram_json, title: str, image_url: str = None, log
     buf.seek(0)
     logger.info(f"Histogram plot generated for {title}")
     return buf
+
 async def process_item(session, market_hash_name, logger=logger):
     logger.info(f"Processing item: {market_hash_name}")
     try:
@@ -754,9 +809,8 @@ async def process_item(session, market_hash_name, logger=logger):
             so = histogram.get("sell_order_summary", "")
             bo = histogram.get("buy_order_summary", "")
             logger.debug(f"Histogram data: sell_order_summary={so}, buy_order_summary={bo}")
-            # Updated regex to handle different formats
-            sell_match = re.search(r"(\d+)", so)  # Simplified to capture any number
-            buy_match = re.search(r"(\d+)", bo)   # Simplified to capture any number
+            sell_match = re.search(r"(\d+)", so)
+            buy_match = re.search(r"(\d+)", bo)
             analysis["sell_order_count"] = int(sell_match.group(1)) if sell_match else 0
             analysis["buy_order_count"] = int(buy_match.group(1)) if buy_match else 0
             logger.info(f"Histogram analysis for {market_hash_name}: sell_orders={analysis['sell_order_count']}, buy_orders={analysis['buy_order_count']}")
@@ -772,6 +826,7 @@ async def process_item(session, market_hash_name, logger=logger):
     except Exception as e:
         logger.exception(f"Error processing item {market_hash_name}: {e}")
         return None
+
 def build_caption_html(res: dict):
     an = res["analysis"]
     rn = html_escape(res["russian_name"])
@@ -796,13 +851,13 @@ def build_caption_html(res: dict):
     )
     logger.info(f"Caption built for {res['item']}: sell_orders={sell_order_count}, buy_orders={buy_order_count}, publications={publications}, volatility={volatility}")
     return text
+
 async def publish_item(session, chat_id: int, res: dict, logger=logger, with_publish_button=False):
     logger.info(f"Publishing item {res['item']} to chat {chat_id}, with_publish_button={with_publish_button}")
     caption_html = build_caption_html(res)
     temp_files = []
     media = []
     try:
-        # Добавляем изображение предмета
         if res.get("image_url"):
             async with session.get(res["image_url"]) as r:
                 if r.status == 200:
@@ -814,7 +869,6 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
                     media.append(types.InputMediaPhoto(media=FSInputFile(fn), caption=caption_html, parse_mode=ParseMode.HTML))
                     logger.info(f"Item image added for {res['item']}")
         
-        # Добавляем график цены
         price_buf = plot_price_week(res.get("df", pd.DataFrame()), f"Изменение цены за {HISTORY_DAYS} дней — {res['russian_name']}", logger)
         if price_buf:
             fn = f"price_{re.sub(r'[^0-9A-Za-z]', '_', res['item'])}.PNG"
@@ -824,7 +878,6 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
             media.append(types.InputMediaPhoto(media=FSInputFile(fn)))
             logger.info(f"Price plot added for {res['item']}")
         
-        # Добавляем график объёма
         volume_buf = plot_volume_week(res.get("df", pd.DataFrame()), f"Объём продаж за {HISTORY_DAYS} дней — {res['russian_name']}", logger)
         if volume_buf:
             fn = f"vol_{re.sub(r'[^0-9A-Za-z]', '_', res['item'])}.PNG"
@@ -834,7 +887,6 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
             media.append(types.InputMediaPhoto(media=FSInputFile(fn)))
             logger.info(f"Volume plot added for {res['item']}")
         
-        # Добавляем гистограмму заказов
         histogram_buf = plot_orders_histogram(res.get("histogram", {}), f"Гистограмма заказов — {res['russian_name']}", logger=logger)
         if histogram_buf:
             fn = f"hist_{re.sub(r'[^0-9A-Za-z]', '_', res['item'])}.PNG"
@@ -844,19 +896,15 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
             media.append(types.InputMediaPhoto(media=FSInputFile(fn)))
             logger.info(f"Histogram plot added for {res['item']}")
         
-        # Создаём клавиатуру, если нужна кнопка
         kb = None
         if with_publish_button:
             kb_builder = InlineKeyboardBuilder()
             kb_builder.add(types.InlineKeyboardButton(text="📢 Опубликовать в канал", callback_data=f"publish_{res['item']}"))
             kb = kb_builder.as_markup()
         
-        # Отправляем медиагруппу, если есть изображения
         if media:
-            # Ограничиваем до 10 медиафайлов (ограничение Telegram)
             sent_messages = await bot.send_media_group(chat_id=chat_id, media=media[:10])
             if with_publish_button and sent_messages:
-                # Отправляем отдельное сообщение с кнопкой, replying to the first message in the group
                 await bot.send_message(
                     chat_id=chat_id,
                     text="Хотите опубликовать в канал?",
@@ -865,7 +913,6 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
                 )
             logger.info(f"Media group sent for {res['item']} to {chat_id}")
         else:
-            # Если нет изображений, отправляем только текст
             await bot.send_message(chat_id, caption_html, parse_mode=ParseMode.HTML, reply_markup=kb)
             logger.info(f"Text sent for {res['item']} to {chat_id}")
             
@@ -873,7 +920,6 @@ async def publish_item(session, chat_id: int, res: dict, logger=logger, with_pub
         logger.exception(f"Error publishing item {res['item']}: {e}")
         await bot.send_message(chat_id, f"Ошибка при публикации: {e}", parse_mode=ParseMode.HTML)
     finally:
-        # Удаляем временные файлы
         for fpath in temp_files:
             try:
                 os.remove(fpath)
@@ -888,6 +934,7 @@ async def fetch_market_page(session, query="", start=0, count=100, logger=logger
     proxy = get_next_proxy()
     data = await safe_get(session, url, params=params, headers=headers, proxy=proxy, logger=logger)
     return data
+
 async def update_all_items(session, max_pages=MAX_PAGES, page_size=100, logger=logger):
     items = set()
     start = 0
@@ -908,7 +955,15 @@ async def update_all_items(session, max_pages=MAX_PAGES, page_size=100, logger=l
                 if href:
                     hash_part = href.split('/listings/730/')[1].split('?')[0]
                     english = urllib.parse.unquote(hash_part)
-                    cat = 'weapon' if '|' in english else 'sticker' if 'Sticker' in english else 'case' if 'Case' in english else 'other'
+                    cat = (
+                        'weapon' if '|' in english else
+                        'sticker' if 'Sticker' in english else
+                        'case' if 'Case' in english else
+                        'music' if 'Music Kit' in english else
+                        'agent' if any(f in english for f in ['The Professionals', 'Elite Crew', 'SWAT']) else
+                        'gloves' if 'Gloves' in english else
+                        'other'
+                    )
                     sub = english.split('|')[0].strip() if '|' in english else ''
                     items.add((english, russian, cat, sub))
         logger.info(f"Page {page+1}: found {len(rows)} items, unique {len(items)}")
@@ -917,6 +972,7 @@ async def update_all_items(session, max_pages=MAX_PAGES, page_size=100, logger=l
     for eng, rus, cat, sub in items:
         save_item(eng, rus, eng, cat, sub)
     return list(items)
+
 async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, vol_growth_threshold=50.0, logger=logger, num_items=None, **facets):
     logger.info(f"Scanning market: query='{query}', facets={facets}, max_items={max_items}, vol_threshold={vol_threshold}, vol_growth_threshold={vol_growth_threshold}, num_items={num_items}")
     results = await search_market_items(session, query, facets, limit=max_items, logger=logger)
@@ -934,7 +990,7 @@ async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, 
     target_num = num_items if num_items is not None else max_items
     
     for it in items:
-        if len(selected) >= target_num:  # Прерываем, если уже нашли нужное количество
+        if len(selected) >= target_num:
             logger.info(f"Reached target number of items ({target_num}), stopping processing")
             break
             
@@ -954,18 +1010,17 @@ async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, 
                     if volatility >= vol_threshold and volume_growth >= vol_growth_threshold and volume_growth > 0:
                         selected.append(r)
                         logger.info(f"Item {r['item']} selected: volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%")
-                        if len(selected) >= target_num:  # Прерываем, если нашли достаточно
+                        if len(selected) >= target_num:
                             logger.info(f"Reached target number of items ({target_num}) in processing")
                             break
                     else:
                         logger.info(f"Item {r['item']} skipped: does not meet criteria (volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%)")
                 tasks = []
     
-    # Обработка оставшихся задач, если они есть
     if tasks and len(selected) < target_num:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for r in results:
-            if len(selected) >= target_num:  # Прерываем, если нашли достаточно
+            if len(selected) >= target_num:
                 logger.info(f"Reached target number of items ({target_num}) in final processing")
                 break
             if not r or isinstance(r, Exception):
@@ -982,9 +1037,8 @@ async def scan_and_select(session, query="", max_items=100, vol_threshold=20.0, 
             else:
                 logger.info(f"Item {r['item']} skipped: does not meet criteria (volatility={volatility:.2f}%, volume_growth={volume_growth:.2f}%)")
     
-    # Сортировка по volume_growth (на случай, если набралось больше, чем нужно)
     selected.sort(key=lambda x: x.get("analysis", {}).get("volume_growth", 0), reverse=True)
-    selected = selected[:target_num]  # Ограничиваем до target_num, если вдруг набралось больше
+    selected = selected[:target_num]
     logger.info(f"Selected {len(selected)} items (volatility >= {vol_threshold}%, volume_growth >= {vol_growth_threshold}%)")
     return selected
 
@@ -1019,6 +1073,7 @@ async def daily_scheduler_loop():
             except Exception:
                 pass
             await asyncio.sleep(60)
+
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     logger.info("Received /start command")
@@ -1029,6 +1084,7 @@ async def cmd_start(message: types.Message):
     kb.adjust(2)
     text = "Привет! Я скринер рынка Steam для CS2. Выбери действие:"
     await message.answer(text, reply_markup=kb.as_markup())
+
 @dp.message(Command("set"))
 async def cmd_set(message: types.Message):
     logger.info(f"Received /set command: {message.text}")
@@ -1043,6 +1099,7 @@ async def cmd_set(message: types.Message):
     except Exception as e:
         logger.error(f"Error in /set command: {e}")
         await message.answer(f"Ошибка: {e}")
+
 @dp.message(Command("check"))
 async def cmd_check(message: types.Message, state: FSMContext):
     logger.info(f"Received /check command: {message.text}")
@@ -1051,6 +1108,7 @@ async def cmd_check(message: types.Message, state: FSMContext):
         await state.set_state(CheckState.waiting_for_query)
         return await message.answer("Введите название скина, оружия, стикера или другого предмета (например, 'Redline', 'AK-47', 'Sticker Holo'):")
     await process_check_query(message, arg, state)
+
 async def process_check_query(message: types.Message, query: str, state: FSMContext):
     logger.info(f"Processing check query: {query}")
     await message.answer(f"Ищу варианты для: {html_escape(query)}")
@@ -1077,6 +1135,7 @@ async def process_check_query(message: types.Message, query: str, state: FSMCont
         await message.answer(f"Найдено {len(variants)} вариантов. Выберите:", reply_markup=kb.as_markup())
         await state.update_data(variants=[v["english"] for v in variants])
         await state.set_state(CheckState.selecting_variant)
+
 @dp.callback_query(CheckState.selecting_variant)
 async def cb_check_select(callback: types.CallbackQuery, state: FSMContext):
     logger.info(f"Received callback for check_select: {callback.data}")
@@ -1104,16 +1163,18 @@ async def cb_check_select(callback: types.CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Error in check_select callback: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 @dp.message(CheckState.waiting_for_query)
 async def msg_check_query(message: types.Message, state: FSMContext):
     query = message.text.strip()
     logger.info(f"Received query in waiting_for_query state: {query}")
     await process_check_query(message, query, state)
+
 @dp.message(Command("scan"))
 @dp.callback_query(lambda c: c.data == "scan_market")
 async def cmd_scan_start(message_or_callback, state: FSMContext):
     global _cache
-    _cache.clear()  # Очистка кэша перед сканированием
+    _cache.clear()
     logger.info("Cache cleared before scan")
     try:
         if isinstance(message_or_callback, types.CallbackQuery):
@@ -1166,24 +1227,25 @@ async def cb_scan_type(callback: types.CallbackQuery, state: FSMContext):
             return
         if data == "scan_type_skip":
             await state.update_data(type=None)
-            await next_level(callback, state, ScanState.selecting_exterior, "exterior")  # Default to exterior if skip
+            await state.set_state(ScanState.selecting_subcategory)
+            kb = build_filter_keyboard(FACETS["subcategory_all"], "scan_subcategory", add_run_button=True)
+            breadcrumbs = await get_breadcrumbs(state)
+            text = f"{breadcrumbs}\n\nВыберите оружие:"
+            await callback.message.edit_text(text, reply_markup=kb)
             return
-        type_key = data.split("_")[-1]
+        type_key = data.replace("scan_type_", "")
         type_label = FACETS["type"].get(type_key, "Неизвестно")
         await state.update_data(type=type_key)
         logger.info(f"Selected type: {type_key} ({type_label})")
         
-        # Check if the selected type has subcategories
         sub_options = FACETS["subcategory"].get(type_key, {})
         if sub_options:
-            # Pass the subcategory dictionary for the selected type
             await state.set_state(ScanState.selecting_subcategory)
             kb = build_filter_keyboard(sub_options, "scan_subcategory", add_run_button=True)
             breadcrumbs = await get_breadcrumbs(state)
-            text = f"{breadcrumbs}\n\nВыберите подкатегорию:"
+            text = f"{breadcrumbs}\n\nВыберите оружие:"
             await callback.message.edit_text(text, reply_markup=kb)
         else:
-            # If no subcategories, skip to exterior
             await state.update_data(subcategory=None)
             await next_level(callback, state, ScanState.selecting_exterior, "exterior")
     except Exception as e:
@@ -1199,7 +1261,7 @@ async def cb_scan_subcategory(callback: types.CallbackQuery, state: FSMContext):
             page = int(data.split("_")[-1])
             type_data = await state.get_data()
             type_key = type_data.get("type")
-            sub_options = FACETS["subcategory"].get(type_key, {})
+            sub_options = FACETS["subcategory"].get(type_key, FACETS.get("subcategory_all", {}))
             kb = build_filter_keyboard(sub_options, "scan_subcategory", page, add_run_button=True)
             await callback.message.edit_reply_markup(reply_markup=kb)
             return
@@ -1207,22 +1269,37 @@ async def cb_scan_subcategory(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(subcategory=None)
             await next_level(callback, state, ScanState.selecting_exterior, "exterior")
             return
-        sub_key = data.split("_")[-1]
+        sub_key = data.replace("scan_subcategory_", "")
         type_data = await state.get_data()
         type_key = type_data.get("type")
-        sub_label = FACETS["subcategory"].get(type_key, {}).get(sub_key, "Неизвестно")
+        sub_options = FACETS["subcategory"].get(type_key, FACETS.get("subcategory_all", {}))
+        sub_label = sub_options.get(sub_key, "Неизвестно")
+        if sub_label == "Неизвестно":
+            logger.warning(f"Invalid subcategory key: {sub_key} for type_key={type_key}")
+            await callback.message.answer("Выбрана неверная подкатегория.")
+            return
         await state.update_data(subcategory=sub_key)
         await next_level(callback, state, ScanState.selecting_exterior, "exterior")
     except Exception as e:
         logger.error(f"Error in cb_scan_subcategory: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 async def get_breadcrumbs(state: FSMContext):
     data = await state.get_data()
     path = []
     def get_label(facet_name, key):
+        if key is None:
+            return "Не выбрано"
         if facet_name == 'subcategory':
             type_key = data.get('type')
-            return FACETS.get('subcategory', {}).get(type_key, {}).get(key, key)
+            if type_key:
+                return FACETS.get('subcategory', {}).get(type_key, {}).get(key, key)
+            else:
+                return FACETS["subcategory_all"].get(key, key)
+        elif facet_name == 'rarity':
+            type_key = data.get('type')
+            category = type_to_cat.get(type_key, 'other')
+            return FACETS.get('rarity', {}).get(category, {}).get(key, key)
         return FACETS.get(facet_name, {}).get(key, key)
     if 'type' in data:
         path.append(f"Тип: {get_label('type', data['type'])}")
@@ -1237,6 +1314,7 @@ async def get_breadcrumbs(state: FSMContext):
     if 'quality' in data:
         path.append(f"Качество: {get_label('quality', data['quality'])}")
     return " > ".join(path) if path else ""
+
 async def perform_scan(chat_id: int, state: FSMContext, bot: Bot):
     data = await state.get_data()
     query = data.get('keywords', "")
@@ -1281,8 +1359,18 @@ async def perform_scan(chat_id: int, state: FSMContext, bot: Bot):
 
 async def next_level(callback: types.CallbackQuery, state: FSMContext, next_state: State, next_filter: str):
     try:
+        if next_filter not in FACETS:
+            logger.error(f"Invalid filter: {next_filter}")
+            await callback.message.answer(f"Ошибка: Неверный фильтр {next_filter}")
+            return
         breadcrumbs = await get_breadcrumbs(state)
+        data = await state.get_data()
         options = FACETS.get(next_filter, {})
+        # Handle rarity based on selected type
+        if next_filter == 'rarity':
+            type_key = data.get('type')
+            category = type_to_cat.get(type_key, 'other')
+            options = FACETS.get('rarity', {}).get(category, {})
         kb = build_filter_keyboard(options, f"scan_{next_filter}", add_run_button=True)
         text = f"{breadcrumbs}\n\nВыберите {next_filter.replace('_', ' ').capitalize()}:"
         await state.set_state(next_state)
@@ -1310,13 +1398,14 @@ async def cb_scan_exterior(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(exterior=None)
             await next_level(callback, state, ScanState.selecting_itemset, "itemset")
             return
-        ext_key = data.split("_")[-1]
+        ext_key = data.replace("scan_exterior_", "")
         ext_label = FACETS["exterior"].get(ext_key, "Неизвестно")
         await state.update_data(exterior=ext_key)
         await next_level(callback, state, ScanState.selecting_itemset, "itemset")
     except Exception as e:
         logger.error(f"Error in cb_scan_exterior: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 @dp.callback_query(ScanState.selecting_itemset)
 async def cb_scan_itemset(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -1331,13 +1420,14 @@ async def cb_scan_itemset(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(itemset=None)
             await next_level(callback, state, ScanState.selecting_rarity, "rarity")
             return
-        set_key = data.split("_")[-1]
+        set_key = data.replace("scan_itemset_", "")
         set_label = FACETS["itemset"].get(set_key, "Неизвестно")
         await state.update_data(itemset=set_key)
         await next_level(callback, state, ScanState.selecting_rarity, "rarity")
     except Exception as e:
         logger.error(f"Error in cb_scan_itemset: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 @dp.callback_query(ScanState.selecting_rarity)
 async def cb_scan_rarity(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -1345,20 +1435,32 @@ async def cb_scan_rarity(callback: types.CallbackQuery, state: FSMContext):
         data = callback.data
         if data.startswith("scan_rarity_page_"):
             page = int(data.split("_")[-1])
-            kb = build_filter_keyboard(FACETS["rarity"], "scan_rarity", page, add_run_button=True)
+            data_state = await state.get_data()
+            type_key = data_state.get('type')
+            category = type_to_cat.get(type_key, 'other')
+            options = FACETS["rarity"].get(category, {})
+            kb = build_filter_keyboard(options, "scan_rarity", page, add_run_button=True)
             await callback.message.edit_reply_markup(reply_markup=kb)
             return
         if data == "scan_rarity_skip":
             await state.update_data(rarity=None)
             await next_level(callback, state, ScanState.selecting_quality, "quality")
             return
-        rarity_key = data.split("_")[-1]
-        rarity_label = FACETS["rarity"].get(rarity_key, "Неизвестно")
+        rarity_key = data.replace("scan_rarity_", "")
+        data_state = await state.get_data()
+        type_key = data_state.get('type')
+        category = type_to_cat.get(type_key, 'other')
+        rarity_label = FACETS["rarity"].get(category, {}).get(rarity_key, "Неизвестно")
+        if rarity_label == "Неизвестно":
+            logger.warning(f"Invalid rarity key: {rarity_key} for category={category}")
+            await callback.message.answer("Выбрана неверная редкость.")
+            return
         await state.update_data(rarity=rarity_key)
         await next_level(callback, state, ScanState.selecting_quality, "quality")
     except Exception as e:
         logger.error(f"Error in cb_scan_rarity: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 @dp.callback_query(ScanState.selecting_quality)
 async def cb_scan_quality(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -1373,21 +1475,23 @@ async def cb_scan_quality(callback: types.CallbackQuery, state: FSMContext):
             await state.update_data(quality=None)
             await start_keywords(callback, state)
             return
-        quality_key = data.split("_")[-1]
+        quality_key = data.replace("scan_quality_", "")
         quality_label = FACETS["quality"].get(quality_key, "Неизвестно")
         await state.update_data(quality=quality_key)
         await start_keywords(callback, state)
     except Exception as e:
         logger.error(f"Error in cb_scan_quality: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 async def start_keywords(callback: types.CallbackQuery, state: FSMContext):
     breadcrumbs = await get_breadcrumbs(state)
     await state.set_state(ScanState.selecting_keywords)
-    text = f"{breadcrumbs}\n\nВведите ключевые слова (или 'none' для без):"
+    text = f"{breadcrumbs}\n\nВведите часть названия скина для поиска (или 'none' для без):"
     kb = InlineKeyboardBuilder()
     kb.add(types.InlineKeyboardButton(text="🚀 Запустить скан", callback_data="scan_run"))
-    kb.adjust(1) # Меньше кнопок
+    kb.adjust(1)  # Меньше кнопок
     await callback.message.edit_text(text, reply_markup=kb.as_markup())
+
 @dp.message(ScanState.selecting_keywords)
 async def msg_scan_keywords(message: types.Message, state: FSMContext, bot: Bot):
     query = message.text.strip().lower()
@@ -1395,16 +1499,19 @@ async def msg_scan_keywords(message: types.Message, state: FSMContext, bot: Bot)
         query = ""
     await state.update_data(keywords=query)
     await perform_scan(message.chat.id, state, bot)
+
 @dp.callback_query(lambda c: c.data == "scan_run")
 async def cb_scan_run(callback: types.CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer()
     await state.update_data(keywords="")
     await perform_scan(callback.message.chat.id, state, bot)
+
 @dp.callback_query(lambda c: c.data == "set_thresholds")
 async def cb_set_thresholds(callback: types.CallbackQuery):
     await callback.answer()
     logger.info("Received set_thresholds callback")
     await callback.message.answer("Отправь /set с волатильностью и ростом объема, например: /set 20 50")
+
 @dp.callback_query(lambda c: c.data == "check_specific")
 async def cb_check_specific(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
@@ -1415,6 +1522,7 @@ async def cb_check_specific(callback: types.CallbackQuery, state: FSMContext):
     except Exception as e:
         logger.error(f"Error in cb_check_specific: {e}")
         await callback.message.answer(f"Ошибка: {e}")
+
 @dp.callback_query(lambda c: c.data.startswith("publish_"))
 async def cb_publish_to_channel(callback: types.CallbackQuery):
     await callback.answer()
@@ -1427,6 +1535,7 @@ async def cb_publish_to_channel(callback: types.CallbackQuery):
             await callback.message.answer("Опубликовано в канал!")
         else:
             await callback.message.answer("Ошибка при публикации.")
+
 async def main():
     logger.info("Starting bot polling")
     init_db()
@@ -1445,6 +1554,7 @@ async def main():
             else:
                 logger.error("Max retries reached, stopping bot")
                 raise
+
 if __name__ == "__main__":
     try:
         asyncio.run(main())

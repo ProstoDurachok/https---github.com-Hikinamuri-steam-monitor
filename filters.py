@@ -1,8 +1,33 @@
-# Этот файл содержит FACETS для фильтров и функцию построения клавиатур.
-
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardButton
 
+# Маппинг type to cat
+type_to_cat = {
+    "CSGO_Type_Pistol": "weapon",
+    "CSGO_Type_SMG": "weapon",
+    "CSGO_Type_Rifle": "weapon",
+    "CSGO_Type_Shotgun": "weapon",
+    "CSGO_Type_SniperRifle": "weapon",
+    "CSGO_Type_Machinegun": "weapon",
+    "CSGO_Type_Knife": "weapon",
+    "CSGO_Tool_GiftTag": "other",
+    "CSGO_Tool_Name_TagTag": "other",
+    "CSGO_Type_Tool": "other",
+    "CSGO_Type_Ticket": "other",
+    "CSGO_Type_Collectible": "other",
+    "CSGO_Type_Equipment": "other",
+    "CSGO_Type_MusicKit": "other",
+    "CSGO_Type_Spray": "other",
+    "CSGO_Type_WeaponCase": "other",
+    "Type_CustomPlayer": "character",
+    "Type_Hands": "other",
+    "CSGO_Tool_Keychain": "other",
+    "CSGO_Tool_Patch": "patch",
+    "CSGO_Tool_Sticker": "sticker",
+    "CSGO_Tool_WeaponCase_KeyTag": "other",
+}
+
+# FACETS dictionary
 FACETS = {
     "type": {
         "CSGO_Type_Pistol": "Пистолет",
@@ -12,6 +37,21 @@ FACETS = {
         "CSGO_Type_SniperRifle": "Снайперская винтовка",
         "CSGO_Type_Machinegun": "Пулемёт",
         "CSGO_Type_Knife": "Нож",
+        "CSGO_Tool_GiftTag": "Подарок",
+        "CSGO_Tool_Name_TagTag": "Ярлык",
+        "CSGO_Type_Tool": "Инструмент",
+        "CSGO_Type_Ticket": "Пропуск",
+        "CSGO_Type_Collectible": "Сувенир",
+        "CSGO_Type_Equipment": "Снаряжение",
+        "CSGO_Type_MusicKit": "Набор музыки",
+        "CSGO_Type_Spray": "Граффити",
+        "CSGO_Type_WeaponCase": "Контейнер",
+        "Type_CustomPlayer": "Агент",
+        "Type_Hands": "Перчатки",
+        "CSGO_Tool_Keychain": "Брелок",
+        "CSGO_Tool_Patch": "Нашивка",
+        "CSGO_Tool_Sticker": "Наклейка",
+        "CSGO_Tool_WeaponCase_KeyTag": "Ключ",
     },
     "subcategory": {
         "CSGO_Type_Pistol": {
@@ -185,22 +225,27 @@ FACETS = {
         "set_xraymachine": "Коллекция «Рентген»"
     },
     "rarity": {
-        "Rarity_Common_Weapon": "Ширпотреб",
-        "Rarity_Uncommon_Weapon": "Промышленное качество",
-        "Rarity_Rare_Weapon": "Армейское качество",
-        "Rarity_Mythical_Weapon": "Запрещённое",
-        "Rarity_Legendary_Weapon": "Засекреченное",
-        "Rarity_Ancient_Weapon": "Тайное",
-        "Rarity_Contraband": "Контрабанда",
-        "Rarity_Rare": "Высшего класса",
-        "Rarity_Mythical": "Примечательного типа",
-        "Rarity_Legendary": "Экзотичного вида",
-        "Rarity_Ancient": "Экстраординарного типа",
-        "Rarity_Common": "Базового класса",
-        "Rarity_Rare_Character": "Заслуженный",
-        "Rarity_Mythical_Character": "Исключительный",
-        "Rarity_Legendary_Character": "Превосходный",
-        "Rarity_Ancient_Character": "Мастерский"
+        "weapon": {
+            "Rarity_Rare_Weapon": "Армейское качество",
+            "Rarity_Mythical_Weapon": "Запрещённое",
+            "Rarity_Legendary_Weapon": "Засекреченное",
+            "Rarity_Ancient_Weapon": "Тайное",
+            "Rarity_Contraband": "Контрабанда",
+        },
+        "character": {
+            "Rarity_Rare_Character": "Заслуженный",
+            "Rarity_Mythical_Character": "Исключительный",
+            "Rarity_Legendary_Character": "Превосходный",
+            "Rarity_Ancient_Character": "Мастерский"
+        },
+        "other": {
+            "Rarity_Common": "Базового класса",
+            "Rarity_Rare": "Высшего класса",
+            "Rarity_Mythical": "Примечательного типа",
+            "Rarity_Legendary": "Экзотичного вида",
+            "Rarity_Ancient": "Экстраординарного типа",
+            "Rarity_Contraband": "Контрабанда",
+        },
     },
     "quality": {
         "normal": "Обычный",
@@ -210,31 +255,245 @@ FACETS = {
         "unusual_strange": "★ StatTrak™",
         "highlight": "Яркий момент"
     },
+    "sticker_capsule": {
+        "crate_signature_pack_aus2025_group_players_collection": "Автографы игроков с BLAST.tv Austin Major 2025",
+        "crate_signature_pack_rio2022_group_players_collection": "Автографы игроков IEM Rio Major 2022",
+        "crate_signature_pack_sha2024_group_players_collection": "Автографы игроков с шанхайского мейджора 2024 года",
+        "crate_signature_pack_antwerp2022_group_players_collection": "Автографы игроков PGL Major Antwerp 2022",
+        "crate_signature_pack_cph2024_group_players_collection": "Автографы игроков с PGL Major Copenhagen 2024",
+        "crate_signature_pack_paris2023_group_players_collection": "Автографы игроков на BLAST.tv Paris Major 2023",
+        "crate_signature_pack_boston2018_group_players_collection": "Автографы игроков на ELEAGUE Boston 2018",
+        "crate_signature_pack_berlin2019_group_players_collection": "Автографы игроков на StarLadder Berlin 2019",
+        "crate_signature_pack_katowice2019_group_players_collection": "Автографы игроков на IEM Katowice 2019",
+        "crate_signature_pack_london2018_group_players_collection": "Автографы игроков на FACEIT London 2018",
+        "crate_signature_pack_krakow2017_group_players_collection": "Автографы игроков на PGL Krakow 2017",
+        "crate_signature_pack_atlanta2017_group_players_collection": "Автографы игроков на ELEAGUE Atlanta 2017",
+        "crate_signature_pack_cologne2016_group_players_collection": "Автографы игроков на ESL One Cologne 2016",
+        "crate_signature_pack_columbus2016_group_players_collection": "Автографы игроков на MLG Columbus 2016",
+        "crate_signature_pack_eslcologne2015_group_players_collection": "Автографы игроков на ESL One Cologne 2015",
+        "crate_signature_pack_cluj2015_group_players_collection": "Автографы игроков на DreamHack Cluj-Napoca 2015",
+        "crate_signature_pack_stockh2021_group_players_collection": "Автографы игроков PGL Major Stockholm 2021",
+        "crate_sticker_pack_riptide_surfshop_lootlist": "Коллекция наклеек «Сёрфинг в хищных водах»",
+        "crate_sticker_pack_aus2025_contenders_collection": "Наклейки кандидатов BLAST.tv Austin Major 2025",
+        "crate_sticker_pack_csgo10_capsule_lootlist": "Капсула наклеек десятилетнего юбилея",
+        "crate_sticker_pack_antwerp2022_challengers_collection": "Наклейки претендентов PGL Major Antwerp 2022",
+        "crate_sticker_pack_antwerp2022_contenders_collection": "Наклейки кандидатов PGL Major Antwerp 2022",
+        "crate_sticker_pack_antwerp2022_legends_collection": "Наклейки легенд PGL Major Antwerp 2022",
+        "crate_sticker_pack_aus2025_challengers_collection": "Наклейки претендентов BLAST.tv Austin Major 2025",
+        "crate_sticker_pack_aus2025_legends_collection": "Наклейки легенд BLAST.tv Austin Major 2025",
+        "crate_sticker_pack_berlin2019_contenders_collection": "Региональные претенденты StarLadder Berlin 2019",
+        "crate_sticker_pack_cph2024_challengers_collection": "Наклейки претендентов PGL Major Copenhagen 2024",
+        "crate_sticker_pack_cph2024_contenders_collection": "Наклейки кандидатов PGL Major Copenhagen 2024",
+        "crate_sticker_pack_cph2024_legends_collection": "Наклейки легенд PGL Major Copenhagen 2024",
+        "crate_sticker_pack_paris2023_challengers_collection": "Наклейки претендентов BLAST.tv Paris Major 2023",
+        "crate_sticker_pack_paris2023_contenders_collection": "Наклейки кандидатов BLAST.tv Paris Major 2023",
+        "crate_sticker_pack_paris2023_legends_collection": "Наклейки легенд BLAST.tv Paris Major 2023",
+        "crate_sticker_pack_rio2022_challengers_collection": "Наклейки претендентов IEM Rio Major 2022",
+        "crate_sticker_pack_rio2022_contenders_collection": "Наклейки кандидатов IEM Rio Major 2022",
+        "crate_sticker_pack_rio2022_legends_collection": "Наклейки легенд IEM Rio Major 2022",
+        "crate_sticker_pack_sha2024_challengers_collection": "Наклейки претендентов шанхайского мейджора 2024 года",
+        "crate_sticker_pack_sha2024_contenders_collection": "Наклейки кандидатов шанхайского мейджора 2024 года",
+        "crate_sticker_pack_sha2024_legends_collection": "Наклейки легенд шанхайского мейджора 2024 года",
+        "crate_sticker_pack_stockh2021_challengers_collection": "Наклейки претендентов PGL Major Stockholm 2021",
+        "crate_sticker_pack_stockh2021_contenders_collection": "Наклейки кандидатов PGL Major Stockholm 2021",
+        "crate_sticker_pack_stockh2021_legends_collection": "Наклейки легенд PGL Major Stockholm 2021",
+        "crate_sticker_pack_katowice2019_challengers_collection": "Вернувшиеся претенденты IEM Katowice 2019",
+        "crate_sticker_pack_rmr2020_challengers_collection": "Претенденты РМР-2020",
+        "crate_sticker_pack_rmr2020_contenders_collection": "Кандидаты РМР-2020",
+        "crate_sticker_pack_rmr2020_legends_collection": "Легенды РМР-2020",
+        "crate_sticker_pack_boston2018_contenders_collection": "Региональные претенденты ELEAGUE Boston 2018",
+        "crate_sticker_pack_recoil_lootlist": "Коллекция наклеек «Отдача»",
+        "crate_sticker_pack_boston2018_legends_collection": "Легенды ELEAGUE Boston 2018",
+        "crate_sticker_pack_atlanta2017_legends_collection": "Легенды ELEAGUE Atlanta 2017",
+        "crate_sticker_pack_berlin2019_legends_collection": "Легенды StarLadder Berlin 2019",
+        "crate_sticker_pack_boston2018_challengers_collection": "Вернувшиеся претенденты ELEAGUE Boston 2018",
+        "crate_sticker_pack_cologne2016_legends_collection": "Легенды ESL One Cologne 2016",
+        "crate_sticker_pack_columbus2016_legends_collection": "Легенды MLG Columbus 2016",
+        "crate_sticker_pack_eslcologne2015_legends_collection": "Легенды ESL One Cologne 2015",
+        "crate_sticker_pack_cluj2015_legends_collection": "Легенды DreamHack Cluj-Napoca 2015",
+        "crate_sticker_pack_krakow2017_legends_collection": "Легенды PGL Krakow 2017",
+        "crate_sticker_pack_london2018_challengers_collection": "Вернувшиеся претенденты FACEIT London 2018",
+        "crate_sticker_pack_london2018_contenders_collection": "Региональные претенденты FACEIT London 2018",
+        "crate_sticker_pack_london2018_legends_collection": "Легенды FACEIT London 2018",
+        "crate_sticker_pack_atlanta2017_challengers_collection": "Претенденты ELEAGUE Atlanta 2017",
+        "crate_sticker_pack_cologne2016_challengers_collection": "Претенденты ESL One Cologne 2016",
+        "crate_sticker_pack_columbus2016_challengers_collection": "Претенденты MLG Columbus 2016",
+        "crate_sticker_pack_eslkatowice2015_01_collection": "Легенды ESL One Katowice 2015",
+        "crate_sticker_pack_krakow2017_challengers_collection": "Претенденты PGL Krakow 2017",
+        "crate_sticker_pack_slid3_capsule_lootlist": "Капсула с наклейками Slid3",
+        "crate_sticker_pack_eslkatowice2015_02_collection": "Претенденты ESL One Katowice 2015",
+        "sticker_pack_stkr_craft_01_lootlist": "Набор наклеек «Собери стихию»",
+        "sticker_pack_stkr_craft_02_lootlist": "Набор наклеек «Собери человечка»",
+        "crate_sticker_pack_spring2022_capsule_lootlist": "Капсула с наклейками «Зал заседаний»",
+        "crate_sticker_pack_comm2018_01_capsule_lootlist": "Капсула от сообщества 2018",
+        "crate_sticker_pack_community2021_capsule_lootlist": "Капсула с наклейками сообщества 2021",
+        "crate_sticker_pack_community2022_capsule_lootlist": "Капсула с наклейками «Шпионаж»",
+        "crate_sticker_pack_community_2024_capsule_lootlist": "Капсула с наклейками «Засада»",
+        "crate_sticker_pack_katowice2019_contenders_collection": "Региональные претенденты IEM Katowice 2019",
+        "crate_sticker_pack_sugarface_capsule_lootlist": "Капсула с наклейками «Раскрасавцы»",
+        "crate_sticker_pack_bf2042_capsule_lootlist": "Капсула с наклейками Battlefield 2042",
+        "crate_sticker_pack_chicken_capsule_lootlist": "Куриная капсула",
+        "crate_sticker_pack_cluj2015_challengers_collection": "Претенденты DreamHack Cluj-Napoca 2015",
+        "crate_sticker_pack_eslcologne2015_challengers_collection": "Претенденты ESL One Cologne 2015",
+        "crate_sticker_pack_feral_predators_capsule_lootlist": "Капсула с наклейками «Дикие хищники»",
+        "crate_sticker_pack_halo_capsule_lootlist": "Капсула Halo",
+        "crate_sticker_pack_kat2014_01": "Претенденты EMS Katowice 2014",
+        "crate_sticker_pack_kat2014_02": "Легенды EMS Katowice 2014",
+        "crate_sticker_pack_pinups_capsule_lootlist": "Капсула с наклейками «Красотки»",
+        "crate_sticker_pack_skillgroup_capsule_lootlist": "Капсула с наклейками званий",
+        "crate_sticker_pack_warhammer_adeptus_capsule_lootlist": "Капсула с наклейками Warhammer 40,000 — Адептус Астартес",
+        "crate_sticker_pack_warhammer_imperium_capsule_lootlist": "Капсула с наклейками Warhammer 40,000 — Империум",
+        "crate_sticker_pack_warhammer_traitor_capsule_lootlist": "Капсула с наклейками Warhammer 40,000 — Трайторис Астартес",
+        "crate_sticker_pack_warhammer_xenos_capsule_lootlist": "Капсула с наклейками Warhammer 40,000 — Ксеносы",
+        "crate_sticker_pack_berlin2019_challengers_collection": "Вернувшиеся претенденты StarLadder Berlin 2019",
+        "crate_sticker_pack_cologne2014_02": "Претенденты ESL One Cologne 2014",
+        "crate_sticker_pack_dhw2014_01_collection": "Легенды DreamHack 2014",
+        "crate_sticker_pack_warhammer_lootlist": "Капсула с наклейками Warhammer 40,000",
+        "crate_sticker_pack_community01": "Капсула с наклейкой сообщества 1",
+        "crate_sticker_pack02": "Капсула с наклейкой 2",
+        "crate_sticker_pack01": "Капсула с наклейкой",
+        "crate_sticker_pack_broken_fang_lootlist": "Коллекция наклеек «Сломанный клык»",
+        "crate_sticker_pack_cologne2014_01": "Легенды ESL One Cologne 2014",
+        "crate_sticker_pack_illuminate_capsule_01_lootlist": "Капсула с наклейками Perfect World 1",
+        "crate_sticker_pack_illuminate_capsule_02_lootlist": "Капсула с наклейками Perfect World 2",
+        "crate_sticker_pack_bestiary_capsule_lootlist": "Капсула с наклейками «Бестиарий»",
+        "crate_sticker_pack_enfu_capsule_lootlist": "Капсула с наклейками Enfu",
+        "crate_sticker_pack_op_riptide_capsule_lootlist": "Коллекция наклеек «Хищные воды»",
+        "crate_sticker_pack_team_roles_capsule_lootlist": "Капсула с наклейками «Члены команды»",
+        "crate_sticker_pack_dhw2014_02": "Претенденты DreamHack 2014",
+        "crate_sticker_pack_shattered_web_lootlist": "Коллекция наклеек «Расколотая сеть»",
+    },
+    "patch_capsule": {
+        "crate_patch_pack01": "Набор нашивок CS:GO",
+        "crate_patch_pack_stockh2021_challengers_collection": "Нашивки претендентов PGL Major Stockholm 2021",
+        "crate_patch_pack_stockh2021_contenders_collection": "Нашивки кандидатов PGL Major Stockholm 2021",
+        "crate_patch_pack_stockh2021_legends_collection": "Нашивки легенд PGL Major Stockholm 2021",
+        "crate_patch_pack02": "Коллекция нашивок «Металлические звания»",
+        "crate_patch_pack03": "Коллекция нашивок «Спецназ»",
+        "crate_patch_pack_hlalyx": "Набор нашивок Half-Life: Alyx",
+    },
+    "spray_capsule": {
+        "csgo_spray_std2_drops_1": "Коллекция граффити CS:GO #2",
+        "csgo_spray_std2_drops_2": "Коллекция граффити «Тролли»",
+        "csgo_spray_std3_drops": "Коллекция граффити CS:GO #3",
+        "crate_sprays_community_1_lootlist": "Ящик с граффити от сообщества 1",
+        "crate_sprays_illuminate1_lootlist": "Ящик с граффити Perfect World",
+        "crate_sprays_vcap1_lootlist": "Ящик с граффити",
+    },
+    "spray_color_category": {
+        "Tint0": "Спектр",
+        "Tint1": "Кирпичный красный",
+        "Tint2": "Кровавый красный",
+        "Tint3": "Тигровый оранжевый",
+        "Tint4": "Пыльный коричневый",
+        "Tint5": "Пустынный янтарный",
+        "Tint6": "Дорожный желтый",
+        "Tint7": "Боевой зелёный",
+        "Tint8": "Лесной зелёный",
+        "Tint9": "Лягушачий зелёный",
+        "Tint10": "Денежный зелёный",
+        "Tint11": "Пластиковый синий",
+        "Tint12": "Королевский синий",
+        "Tint13": "Полицейский синий",
+        "Tint14": "Жестокий фиолетовый",
+        "Tint15": "Жуткий фиолетовый",
+        "Tint16": "Взрывной розовый",
+        "Tint17": "Нежный розовый",
+        "Tint18": "Траншейный розовый",
+        "Tint19": "Акулий белый",
+    },
+    "tournament": {
+        "Tournament24": "BLAST.tv Austin Major 2025",
+        "Tournament23": "Perfect World Shanghai Major 2024",
+        "Tournament22": "PGL Major Copenhagen 2024",
+        "Tournament21": "BLAST.tv Paris Major 2023",
+        "Tournament20": "IEM Rio Major 2022",
+        "Tournament19": "PGL Major Antwerp 2022",
+        "Tournament18": "PGL Major Stockholm 2021",
+        "Tournament17": "РМР-2020",
+        "Tournament16": "StarLadder Berlin 2019",
+        "Tournament15": "IEM Katowice 2019",
+        "Tournament14": "FACEIT London 2018",
+        "Tournament13": "ELEAGUE Boston 2018",
+        "Tournament12": "PGL Krakow 2017",
+        "Tournament11": "ELEAGUE Atlanta 2017",
+        "Tournament10": "ESL One Cologne 2016",
+        "Tournament9": "MLG Columbus 2016",
+        "Tournament8": "DreamHack Cluj-Napoca 2015",
+        "Tournament7": "ESL One Cologne 2015",
+        "Tournament6": "ESL One Katowice 2015",
+        "Tournament5": "DreamHack Winter 2014",
+        "Tournament4": "ESL One Cologne 2014",
+        "Tournament3": "EMS One Katowice 2014",
+        "Tournament1": "DreamHack Winter 2013",
+    },
+    "tournament_team": {
+        "Team12": "Natus Vincere",
+        "Team61": "FaZe Clan",
+        # Add other teams as needed
+    },
+    "pro_player": {
+        "s1mple": "s1mple (Александр Костылев)",
+        # Add other players as needed
+    },
+    "keychain_capsule": {
+        "keychain_pack_kc_weapon_01_lootlist": "Коллекция брелков «Малый калибр»",
+        "keychain_pack_kc_missinglink_lootlist": "Коллекция брелков «Связующее звено»",
+        "keychain_pack_kc_aus2025_lootlist": "Яркий момент BLAST.tv Austin Major 2025",
+    },
+    "patch_category": {
+        "TeamLogo": "Логотипы команд",
+        "Tournament": "Турнир",
+    },
+    "sticker_category": {
+        "PlayerSignature": "Автограф игрока",
+        "TeamLogo": "Логотип команды",
+        "Tournament": "Турнир",
+    },
+    "spray_category": {
+        "TeamLogo": "Логотип команды",
+        "Tournament": "Турнирные",
+    },
 }
 
-def build_filter_keyboard(options_dict, prefix, current_page=0, page_size=9, add_run_button=False):
-    keys = list(options_dict.keys())
-    total_pages = (len(keys) + page_size - 1) // page_size
-    start = current_page * page_size
-    end = start + page_size
-    page_keys = keys[start:end]
-    
+FACETS["subcategory_all"] = {}
+for t in FACETS["subcategory"]:
+    FACETS["subcategory_all"].update(FACETS["subcategory"][t])
+
+def build_filter_keyboard(options, callback_prefix, page=0, add_run_button=False):
     kb = InlineKeyboardBuilder()
-    for key in page_keys:
-        label = options_dict[key]
-        kb.button(text=label, callback_data=f"{prefix}_{key}")
+    items_per_page = 8
+    start_idx = page * items_per_page
+    end_idx = start_idx + items_per_page
     
-    if total_pages > 1:
-        nav_row = []
-        if current_page > 0:
-            nav_row.append(InlineKeyboardButton(text="◀️ Назад", callback_data=f"{prefix}_page_{current_page-1}"))
-        if current_page < total_pages - 1:
-            nav_row.append(InlineKeyboardButton(text="Вперёд ▶️", callback_data=f"{prefix}_page_{current_page+1}"))
-        if nav_row:
-            kb.row(*nav_row)
+    # Sort options by value for consistent display
+    sorted_options = sorted(options.items(), key=lambda x: x[1] if isinstance(x[1], str) else x[1].get(x[0], x[0]))
+    for key, value in sorted_options[start_idx:end_idx]:
+        # Handle nested dictionary for rarity
+        text = value if isinstance(value, str) else value.get(key, key)
+        kb.add(InlineKeyboardButton(
+            text=text,
+            callback_data=f"{callback_prefix}_{key}"
+        ))
     
-    kb.button(text="⏭️ Пропустить", callback_data=f"{prefix}_skip")
+    # Add pagination buttons
+    if start_idx > 0:
+        kb.add(InlineKeyboardButton(
+            text="⬅️ Пред.", callback_data=f"{callback_prefix}_page_{page-1}"
+        ))
+    if end_idx < len(options):
+        kb.add(InlineKeyboardButton(
+            text="След. ➡️", callback_data=f"{callback_prefix}_page_{page+1}"
+        ))
+    
+    # Add skip and run buttons
+    kb.add(InlineKeyboardButton(
+        text="Пропустить", callback_data=f"{callback_prefix}_skip"
+    ))
     if add_run_button:
-        kb.button(text="🚀 Запустить скан", callback_data="scan_run")
-    kb.adjust(3)
+        kb.add(InlineKeyboardButton(
+            text="🚀 Запустить скан", callback_data="scan_run"
+        ))
+    
+    kb.adjust(2)
     return kb.as_markup()
